@@ -103,6 +103,7 @@ public class Board implements Serializable {
 			type = checker.getType();
 			position = checker.getPosition();
 			Boolean killMode = null;
+			boolean canKillBefore  = canKillFrom(position, type, turnColor);
 			for(StepUnit unit : step.getSteps()){
 				boolean hasKilled = false;
 				if (killMode!=null&&killMode==false){
@@ -140,25 +141,29 @@ public class Board implements Serializable {
 					}
 				}
 			}
+			boolean canKillAfter = canKillFrom(checker.getPosition(), checker.getType(), turnColor);
 			//CURRENTLY NOT WORKING, WAITING FOR FIX
-			/*
 			if (killMode){
 				//if you have killed checkers on this turn, we must check if you can kill more
-				if (canKillFrom(checker.getPosition(), checker.getType(), turnColor)){
+				if (canKillAfter){
 					throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can");
 				}
 			}else{
 				//if you have not killed checkers on this turn, we must check if you could it before
-				if (canKillFrom(position, type, turnColor)){
+				if (canKillBefore){
 					throw new IllegalArgumentException("invalid step, you must kill checkers if you can");
 				}
-			}*/
+			}
 		}catch(IllegalArgumentException e) {
 			checker.setType(type);
 			checker.setPosition(position);
 			checkers.addAll(checkersToRemove);
+			if (!checkers.contains(checker)){
+				checkers.add(checker);
+			}
 			throw e;
 		}catch(NullPointerException | IndexOutOfBoundsException e){
+			e.printStackTrace();
 			throw new IllegalArgumentException("invalid step, other error");
 		}
 	}
@@ -170,7 +175,7 @@ public class Board implements Serializable {
 	 * @return <b>true</b> if it can kill or false if can't
 	 */
 	private boolean canKillFrom(Position position, CheckerType type, CheckerColor color) {
-		List<Checker> oppositeCheckers = get(turnColor.opposite());
+		List<Checker> oppositeCheckers = get(color.opposite());
 		return oppositeCheckers.stream().anyMatch(target->canDirectlyKillChecker(position,type,color,target));
 	}
 
@@ -180,16 +185,22 @@ public class Board implements Serializable {
 		int xDir = singleStepXDirection(unit);
 		int yDir = singleStepYDirection(unit);
 		if (xDir==0||yDir==0)return false;
+		Position newPos = new Position(unit.getTo().getX()+xDir, unit.getTo().getY()+yDir);
+		if (!isCorrectPosition(newPos.getLetter(), newPos.getNumber()))return false;
 		//direct move behind another checker, may be valid
-		unit = new StepUnit(position, new Position(unit.getTo().getX()+xDir, unit.getTo().getY()+yDir));
+		unit = new StepUnit(position, newPos);
 		Step step = new Step();
 		step.addStep(unit);
 		if (!new Validator().isValidStep(this, step, color))return false;
 		int stepSize = stepSize(unit);
 		if (type==CheckerType.SIMPLE&&stepSize>2)return false;
 		if (get(unit.getTo()) != null) return false;
-		//TODO check all the path for queen checker
-		return false;
+		for(int i=1; i<stepSize-1; i++){
+			Position position2 = new  Position(position.getX()+xDir*i, position.getY()+yDir*i);
+			Checker checker = get(position2);
+			if (checker!=null)return false;
+		}
+		return true;
 	}
 
 	/**
