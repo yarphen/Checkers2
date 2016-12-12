@@ -1,6 +1,7 @@
 package checkers.pojo.board;
 
 import checkers.pojo.checker.*;
+import checkers.pojo.exceptions.DoOneMoreStepException;
 import checkers.pojo.step.*;
 import checkers.utils.Validator;
 
@@ -103,7 +104,7 @@ public class Board implements Serializable {
 			type = checker.getType();
 			position = checker.getPosition();
 			Boolean killMode = null;
-			boolean canKillBefore  = canKillFrom(position, type, turnColor);
+			boolean canKillBefore  = get(turnColor).stream().anyMatch(myChecker->canKillFrom(myChecker.getPosition(), myChecker.getType(), turnColor));
 			for(StepUnit unit : step.getSteps()){
 				boolean hasKilled = false;
 				if (killMode!=null&&killMode==false){
@@ -146,7 +147,7 @@ public class Board implements Serializable {
 			if (killMode){
 				//if you have killed checkers on this turn, we must check if you can kill more
 				if (canKillAfter){
-					throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can");
+					throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can", new DoOneMoreStepException());
 				}
 			}else{
 				//if you have not killed checkers on this turn, we must check if you could it before
@@ -164,7 +165,7 @@ public class Board implements Serializable {
 			throw e;
 		}catch(NullPointerException | IndexOutOfBoundsException e){
 			e.printStackTrace();
-			throw new IllegalArgumentException("invalid step, other error");
+			throw new IllegalArgumentException("invalid step, other error", e);
 		}
 	}
 	/**
@@ -305,8 +306,8 @@ public class Board implements Serializable {
 			if(checker.getType().equals(type) && checker.getColor().equals(color))
 				result.add(checker);
 
-		if(result.isEmpty())
-			return null;
+//		if(result.isEmpty())
+//			return null;
 		return result;
 	}
 
@@ -321,8 +322,8 @@ public class Board implements Serializable {
 			if(checker.getColor().equals(color))
 				result.add(checker);
 
-		if(result.isEmpty())
-			return null;
+//		if(result.isEmpty())
+//			return null;
 		return result;
 	}
 
@@ -337,8 +338,8 @@ public class Board implements Serializable {
 			if(checker.getType().equals(type))
 				result.add(checker);
 
-		if(result.isEmpty())
-			return null;
+//		if(result.isEmpty())
+//			return null;
 		return result;
 	}
 

@@ -3,6 +3,7 @@ package checkers.server.room;
 import checkers.server.player.Player;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -29,13 +30,15 @@ public class GameRoomsContainer {
                 while(true) {
                     try {
                         Thread.sleep(SLEEP_FOR);
-                        for (GameRoom room : rooms) {
+                        for (Iterator<GameRoom> iterator = rooms.iterator(); iterator.hasNext();) {
+                        	GameRoom room = iterator.next();
                             if (!room.isGameRun()) {
                                 System.out.println(String.format("GAME ROOM %d: removed", room.ID()));
-                                rooms.remove(room);
+                                iterator.remove();
                             }
                         }
                     } catch (Exception e) {
+                    	e.printStackTrace();
                         System.out.println("ERROR WHILE REMOVING GAME ROOM");
                     }
                 }
