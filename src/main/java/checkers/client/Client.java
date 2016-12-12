@@ -54,14 +54,18 @@ public class Client {
 			object = client.read();
 			if(object == null || object.isEnd()) {
 				String message = NetworkClient.CONNECTION_CLOSED;
-				if(object != null && object.getMessage() != null)
+				if(object != null && object.getMessage() != null){
 					message = object.getMessage();
-
+				}
+				if (object.getBoard()!=null){
+					bot.show(object.getBoard());
+				}
 				bot.onGameEnd(message);
 				break;
 			}
-
+			bot.show(object.getBoard());
 			Step step = bot.next(object.getBoard());
+			bot.show(object.getBoard());
 			client.write(new ChangeObject().step(step));
 		}
 		client.endConnection(null);

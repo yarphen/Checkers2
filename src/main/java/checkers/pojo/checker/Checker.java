@@ -23,10 +23,13 @@ public class Checker implements Serializable {
 			@JsonProperty("color")  CheckerColor color,
 			@JsonProperty("type") CheckerType type,
 			@JsonProperty("position") Position position) {
-
 		this.color = color;
 		this.type = type;
 		this.position = position;
+	}
+
+	public Checker(Checker c) {
+		this(c.color,c.type,c.position);
 	}
 
 	public CheckerColor getColor() {

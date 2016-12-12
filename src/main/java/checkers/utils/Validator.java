@@ -39,6 +39,15 @@ public class Validator {
     	List<StepUnit> units = step.getSteps();
     	StepUnit previous = null;
     	for(StepUnit unit:units){
+    		//checking for null positions in the unit
+    		if (unit.getFrom()==null 
+    				|| unit.getTo() == null
+    				|| unit.getFrom().getLetter() == null
+    				|| unit.getFrom().getNumber() == null
+    				|| unit.getTo().getLetter() == null
+    				|| unit.getTo().getNumber() == null){
+    			return false;
+    		}
     		//checking for same position at the start and the end
     		if (unit.getFrom().isSame(unit.getTo())){
     			return false;

@@ -33,4 +33,11 @@ public interface CheckersBot {
      * @return unique client bot name
      */
     String clientBotName();
+
+
+    /**
+     * just shows a board to the client
+     * @param the board to show
+     */
+	void show(Board board);
 }

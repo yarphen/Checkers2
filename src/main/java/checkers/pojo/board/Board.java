@@ -28,6 +28,7 @@ public class Board implements Serializable {
 	 * List of checkers
 	 */
 	private List<Checker> checkers;
+	private int killOrQueenCounter = 0;
 	/**
 	 * Map with target rows for each color
 	 */
@@ -94,7 +95,7 @@ public class Board implements Serializable {
 	 * @throws IllegalArgumentException - throw if step is invalid. contains description why step is invalid
 	 */
 	public void apply(Step step) throws IllegalArgumentException {
-		System.out.println(checkers);
+
 		List<Checker> checkersToRemove = new LinkedList<Checker>();
 		CheckerType type = null;
 		Position position = null;
@@ -107,12 +108,8 @@ public class Board implements Serializable {
 			boolean canKillBefore  = get(turnColor).stream().anyMatch(myChecker->canKillFrom(myChecker.getPosition(), myChecker.getType(), turnColor));
 			for(StepUnit unit : step.getSteps()){
 				boolean hasKilled = false;
-				if (killMode!=null&&killMode==false){
-					throw new IllegalArgumentException("invalid step, you must kill checkers on each stepunit of multistep");
-				}
-				if (get(unit.getTo()) != null) {
-					throw new IllegalArgumentException(String.format("position %s is not empty", unit.getTo()));
-				}
+				checkForSecondStep(killMode);
+				checkForEmptyPosition(unit.getTo());
 				if(checker.getType() == CheckerType.SIMPLE) {
 					Checker removed = applySimpleStep(unit, checker);
 					if (removed!=null){
@@ -120,8 +117,7 @@ public class Board implements Serializable {
 						checkersToRemove.add(removed);
 						checkers.remove(removed);
 					}
-					Numbers target = QUEENTARGET.get(checker.getColor());
-					if (unit.getTo().getNumber()==target){
+					if (hasBecameQueen(turnColor, unit.getTo())){
 						checker.setType(CheckerType.QUEEN);
 					}
 				} else if(checker.getType() == CheckerType.QUEEN) {
@@ -143,31 +139,58 @@ public class Board implements Serializable {
 				}
 			}
 			boolean canKillAfter = canKillFrom(checker.getPosition(), checker.getType(), turnColor);
-			//CURRENTLY NOT WORKING, WAITING FOR FIX
-			if (killMode){
-				//if you have killed checkers on this turn, we must check if you can kill more
-				if (canKillAfter){
-					throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can", new DoOneMoreStepException());
-				}
+			checkIfYouKillAllyouMust(killMode, canKillAfter, canKillBefore);
+			turnColor = turnColor.opposite();
+			if (killMode||(type==CheckerType.SIMPLE&&checker.getType()==CheckerType.QUEEN)){
+				killOrQueenCounter = 0;
 			}else{
-				//if you have not killed checkers on this turn, we must check if you could it before
-				if (canKillBefore){
-					throw new IllegalArgumentException("invalid step, you must kill checkers if you can");
-				}
+				killOrQueenCounter ++ ;
 			}
 		}catch(IllegalArgumentException e) {
 			checker.setType(type);
 			checker.setPosition(position);
 			checkers.addAll(checkersToRemove);
-			if (!checkers.contains(checker)){
-				checkers.add(checker);
-			}
 			throw e;
 		}catch(NullPointerException | IndexOutOfBoundsException e){
 			e.printStackTrace();
 			throw new IllegalArgumentException("invalid step, other error", e);
 		}
 	}
+	private void checkForEmptyPosition(Position to) {
+		if (get(to) != null) {
+			throw new IllegalArgumentException(String.format("position %s is not empty", to));
+		}
+	}
+	/**
+	 * Performs check that your step is not a second step of multistep without kills
+	 * @param killMode
+	 */
+	private void checkForSecondStep(Boolean killMode) {
+		if (killMode!=null&&killMode==false){
+			throw new IllegalArgumentException("invalid step, you must kill checkers on each stepunit of multistep");
+		}
+	}
+	/**
+	 * Performs check that you kill all the checkers on the way until you can't
+	 * And performs check that you really killed checkers if you have a chance
+	 * @param killMode
+	 * @param canKillAfter
+	 * @param canKillBefore
+	 */
+	private void checkIfYouKillAllyouMust(Boolean killMode, boolean canKillAfter, boolean canKillBefore) {
+		if (killMode){
+			//if you have killed checkers on this turn, we must check if you can kill more
+			if (canKillAfter){
+				throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can", new DoOneMoreStepException());
+			}
+		}else{
+			//if you have not killed checkers on this turn, we must check if you could it before
+			if (canKillBefore){
+				throw new IllegalArgumentException("invalid step, you must kill checkers if you can");
+			}
+		}
+	}
+
 	/**
 	 * determines is the checker with such position, type and color can kill
 	 * @param position
@@ -179,7 +202,14 @@ public class Board implements Serializable {
 		List<Checker> oppositeCheckers = get(color.opposite());
 		return oppositeCheckers.stream().anyMatch(target->canDirectlyKillChecker(position,type,color,target));
 	}
-
+	/**
+	 * Determines is the checker in specified <b>position</b> can kills the <b>target</b> checker directly (in one move)
+	 * @param position start positions
+	 * @param type - type of your checker
+	 * @param color - color of your checker
+	 * @param target - checker you attempts to kill
+	 * @return
+	 */
 	private boolean canDirectlyKillChecker(Position position, CheckerType type, CheckerColor color, Checker target) {
 		//direct move over another checker, invalid
 		StepUnit unit = new StepUnit(position, target.getPosition());
@@ -208,7 +238,7 @@ public class Board implements Serializable {
 	 * Applies 1 stepUnit for simple checker
 	 * @param unit - current stepUnit
 	 * @param checker - checker to move
-	 * @return killed checker of null if there is no killed checkers during the stepUnit
+	 * @return killed checker or null if there is no killed checkers during the stepUnit
 	 */
 	private Checker applySimpleStep(StepUnit unit, Checker checker){
 		int stepSize = stepSize(unit);
@@ -277,19 +307,17 @@ public class Board implements Serializable {
 		return Math.abs(unit.getFrom().getX()-unit.getTo().getX());
 	}
 	/**
-	 * return the -1 if moved down, 0 if y not changed, 1 if moved up
 	 *
 	 * @param unit - step unit
-	 * @return
+	 * @return -1 if moved left, 0 if x not changed, 1 if moved right
 	 */
 	private int singleStepYDirection(StepUnit unit){
 		return Integer.compare(unit.getTo().getY(),unit.getFrom().getY());
 	}
 	/**
-	 * return the -1 if moved left, 0 if x not changed, 1 if moved right
 	 *
 	 * @param unit - step unit
-	 * @return
+	 * @return -1 if moved left, 0 if x not changed, 1 if moved right
 	 */
 	private int singleStepXDirection(StepUnit unit){
 		return Integer.compare(unit.getTo().getX(),unit.getFrom().getX());
@@ -298,48 +326,39 @@ public class Board implements Serializable {
 	 *
 	 * @param color - color of checker for filtering
 	 * @param type - type of checker for filtering
-	 * @return list of checkers that match color and type or null if was not found any
+	 * @return list of checkers that match color and type
 	 */
 	public List<Checker> get(CheckerColor color, CheckerType type){
 		List<Checker> result = new ArrayList<Checker>();
 		for(Checker checker : checkers)
 			if(checker.getType().equals(type) && checker.getColor().equals(color))
 				result.add(checker);
-
-//		if(result.isEmpty())
-//			return null;
 		return result;
 	}
 
 	/**
 	 *
 	 * @param color - color of checker for filtering
-	 * @return list of checkers that match color and type or null if was not found any
+	 * @return list of checkers that match color
 	 */
 	public List<Checker> get(CheckerColor color){
 		List<Checker> result = new ArrayList<Checker>();
 		for(Checker checker : checkers)
 			if(checker.getColor().equals(color))
 				result.add(checker);
-
-//		if(result.isEmpty())
-//			return null;
 		return result;
 	}
 
 	/**
 	 *
 	 * @param type - type of checker for filtering
-	 * @return list of checkers that match color and type or null if was not found any
+	 * @return list of checkers that match type
 	 */
 	public List<Checker> get(CheckerType type){
 		List<Checker> result = new ArrayList<Checker>();
 		for(Checker checker : checkers)
 			if(checker.getType().equals(type))
 				result.add(checker);
-
-//		if(result.isEmpty())
-//			return null;
 		return result;
 	}
 
@@ -361,7 +380,60 @@ public class Board implements Serializable {
 
 		return checker;
 	}
-
-
-
+	/**
+	 * Method to clone board
+	 */
+	public Board clone(){
+		Board newBoard = new Board();
+		newBoard.checkers.clear();
+		for(Checker c:checkers){
+			Checker newChecker = new Checker(c);
+			newBoard.getCheckers().add(newChecker);
+		}
+		newBoard.setTurnColor(getTurnColor());
+		return newBoard;
+	}
+	/**
+	 * Simple string view for board
+	 */
+	@Override
+	public String toString() {
+		StringBuffer buffer = new StringBuffer();
+		buffer.append("BOARD:\r\n");
+		for(int y=8; y>=1; y--){
+			for(int x=1; x<=8; x++){
+				Checker checker = get(new Position(x, y));
+				char c;
+				if (checker!=null){
+					if (checker.getColor()==CheckerColor.WHITE){
+						if (checker.getType()==CheckerType.QUEEN){
+							c = 'O';
+						}else{
+							c = 'o';
+						}
+					}else{
+						if (checker.getType()==CheckerType.QUEEN){
+							c = 'X';
+						}else{
+							c = '*';
+						}
+					}
+				}else{
+					c = '_';
+				}
+				buffer.append(c);
+			}
+			buffer.append('\n');
+		}
+		return buffer.toString();
+	}
+	/**
+	 * Determines that the checker with specified <b>color</b> can became a queen reaching <b>to</b> position
+	 * @param color - color of your checker
+	 * @param to - position that you reached
+	 * @return true - if your checker with specified params CAN became a queen checker visiting this position
+	 */
+	public boolean hasBecameQueen(CheckerColor color, Position to) {
+		return to.getNumber() == QUEENTARGET.get(color);
+	}
 }

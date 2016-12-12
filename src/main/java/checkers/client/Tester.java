@@ -9,26 +9,31 @@ import checkers.pojo.step.Step;
  */
 public class Tester {
 
-    public static void main(String[] args){
-        Client client = new Client(new CheckersBot() {
+	public static void main(String[] args){
+		Client client = new Client(new CheckersBot() {
 
-            public void onGameStart(CheckerColor color) {
-                System.out.println(color);
-            }
+			public void onGameStart(CheckerColor color) {
+				System.out.println(color);
+			}
 
-            public Step next(Board board) {
-                return new Step();
-            }
+			public Step next(Board board) {
+				return new Step();
+			}
 
-            public void onGameEnd(String message){
-                System.out.println(message);
-            }
+			public void onGameEnd(String message){
+				System.out.println(message);
+			}
 
-            public String clientBotName() {
-                return "tester";
-            }
+			public String clientBotName() {
+				return "tester";
+			}
 
-        });
-        client.run();
-    }
+			@Override
+			public void show(Board board) {
+				System.out.println(board);
+			}
+
+		});
+		client.run();
+	}
 }

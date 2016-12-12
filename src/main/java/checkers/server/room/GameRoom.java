@@ -3,6 +3,7 @@ package checkers.server.room;
 import checkers.pojo.ChangeObject;
 import checkers.pojo.board.Board;
 import checkers.pojo.checker.CheckerColor;
+import checkers.pojo.checker.CheckerType;
 import checkers.server.player.Player;
 import checkers.utils.Validator;
 
@@ -60,7 +61,8 @@ public class GameRoom implements Runnable {
 		} else {
 			secondPlayerName = secondPlayer.read().getMessage();
 			secondPlayer.write(new ChangeObject().playerColor(CheckerColor.BLACK));
-			System.out.println(String.format("GAME ROOM %d: second player connected with name '%s'", GAME_ROOM_ID, secondPlayerName));
+			System.out.println(String.format("GAME ROOM %d: second player connected with name '%s'",
+					GAME_ROOM_ID, secondPlayerName));
 
 			hasTwoPlayers = true;
 			// start main game loop and start swapping with steps
@@ -73,7 +75,8 @@ public class GameRoom implements Runnable {
 		firstPlayerName = firstPlayer.read().getMessage();
 		firstPlayer.write(new ChangeObject().playerColor(CheckerColor.WHITE));
 
-		System.out.println(String.format("GAME ROOM %d: initialized with player '%s'", GAME_ROOM_ID, firstPlayerName));
+		System.out.println(String.format("GAME ROOM %d: initialized with player '%s'",
+				GAME_ROOM_ID, firstPlayerName));
 	}
 
 	public int ID(){
@@ -111,8 +114,16 @@ public class GameRoom implements Runnable {
 			} else {
 				try {
 					board.apply(object.getStep());
-					if (board.get(CheckerColor.BLACK).isEmpty() || board.get(CheckerColor.WHITE).isEmpty()){
-						message = String.format("PLAYER %s WON", board.getTurnColor());
+					if (board.get(CheckerColor.BLACK).isEmpty()
+							|| board.get(CheckerColor.WHITE).isEmpty()){
+						message = String.format("PLAYER %s WON", board.getTurnColor().opposite());
+						gameRun = false;
+						finishGame(message);
+					}
+					if (board.get(CheckerColor.BLACK,CheckerType.QUEEN).size()==1 
+							&& board.get(CheckerColor.WHITE,CheckerType.QUEEN).size()==1
+							&& board.getCheckers().size() == 2){
+						message = "DRAW GAME!";
 						gameRun = false;
 						finishGame(message);
 					}
@@ -120,7 +131,6 @@ public class GameRoom implements Runnable {
 					gameRun = false;
 					finishGame(e.getMessage());
 				}
-				board.setTurnColor(board.getTurnColor().opposite());
 			}
 		}
 
@@ -131,6 +141,7 @@ public class GameRoom implements Runnable {
 		ChangeObject object = new ChangeObject();
 		object.setEnd(true);
 		object.setMessage(message);
+		object.board(board);
 		firstPlayer.write(object);
 		secondPlayer.write(object);
 

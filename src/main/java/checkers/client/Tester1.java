@@ -28,6 +28,11 @@ public class Tester1 {
                 return "tester1";
             }
 
+			@Override
+			public void show(Board board) {
+				System.out.println(board);
+			}
+
         });
         client.run();
     }
