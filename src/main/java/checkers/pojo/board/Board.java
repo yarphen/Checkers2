@@ -180,9 +180,9 @@ public class Board implements Serializable {
 	private void checkIfYouKillAllyouMust(Boolean killMode, boolean canKillAfter, boolean canKillBefore) {
 		if (killMode){
 			//if you have killed checkers on this turn, we must check if you can kill more
-			if (canKillAfter){
-				throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can", new DoOneMoreStepException());
-			}
+			//			if (canKillAfter){
+			//				throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can", new DoOneMoreStepException());
+			//			}
 		}else{
 			//if you have not killed checkers on this turn, we must check if you could it before
 			if (canKillBefore){
