@@ -37,6 +37,7 @@ public class Board implements Serializable {
 				put(CheckerColor.BLACK, Numbers._1);
 				put(CheckerColor.WHITE, Numbers._8);
 			}});
+	private static final boolean KILL_TO_THE_END_MODE = false;
 	/**
 	 * Default constructor
 	 */
@@ -177,12 +178,13 @@ public class Board implements Serializable {
 	 * @param canKillAfter
 	 * @param canKillBefore
 	 */
+	@SuppressWarnings("unused")
 	private void checkIfYouKillAllyouMust(Boolean killMode, boolean canKillAfter, boolean canKillBefore) {
 		if (killMode){
 			//if you have killed checkers on this turn, we must check if you can kill more
-			//			if (canKillAfter){
-			//				throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can", new DoOneMoreStepException());
-			//			}
+			if (canKillAfter && KILL_TO_THE_END_MODE){
+				throw new IllegalArgumentException("invalid step, you must kill all the checkers if you can", new DoOneMoreStepException());
+			}
 		}else{
 			//if you have not killed checkers on this turn, we must check if you could it before
 			if (canKillBefore){
@@ -393,6 +395,7 @@ public class Board implements Serializable {
 		newBoard.setTurnColor(getTurnColor());
 		return newBoard;
 	}
+	
 	/**
 	 * Simple string view for board
 	 */
@@ -427,6 +430,7 @@ public class Board implements Serializable {
 		}
 		return buffer.toString();
 	}
+
 	/**
 	 * Determines that the checker with specified <b>color</b> can became a queen reaching <b>to</b> position
 	 * @param color - color of your checker
@@ -435,5 +439,14 @@ public class Board implements Serializable {
 	 */
 	public boolean hasBecameQueen(CheckerColor color, Position to) {
 		return to.getNumber() == QUEENTARGET.get(color);
+	}
+	
+
+	public int getKillOrQueenCounter() {
+		return killOrQueenCounter;
+	}
+
+	public boolean isCorrectPosition(Position pos) {
+		return isCorrectPosition(pos.getLetter(), pos.getNumber());
 	}
 }

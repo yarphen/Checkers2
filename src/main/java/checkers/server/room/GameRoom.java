@@ -1,7 +1,14 @@
 package checkers.server.room;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import checkers.pojo.ChangeObject;
 import checkers.pojo.board.Board;
+import checkers.pojo.board.StepCollector;
 import checkers.pojo.checker.CheckerColor;
 import checkers.pojo.checker.CheckerType;
 import checkers.server.player.Player;
@@ -13,6 +20,8 @@ import checkers.utils.Validator;
  * edited by mykhaylo sheremet on 11.12.2016
  */
 public class GameRoom implements Runnable {
+
+	private static final int LIMIT_TO_DRAW_GAME = 15;
 
 	public final int GAME_ROOM_ID;
 
@@ -85,30 +94,56 @@ public class GameRoom implements Runnable {
 
 	public void run() {
 		System.out.println(String.format("GAME ROOM %d: game started", GAME_ROOM_ID));
-		// main game loop here
-
-
-		while (gameRun){
-			ChangeObject object;
+		Callable <ChangeObject> readFromClient = ()->{
+			System.out.println("writing..");
+			System.out.println(System.currentTimeMillis());
 			if(board.getTurnColor() == CheckerColor.WHITE){
 				firstPlayer.write(new ChangeObject().board(board));
-				object = firstPlayer.read();
+				return firstPlayer.read();
 			} else {
 				secondPlayer.write(new ChangeObject().board(board));
-				object = secondPlayer.read();
+				return secondPlayer.read();
 			}
-
+		};
+		// main game loop here
+		while (gameRun){
+			ChangeObject object = null;
+			FutureTask<ChangeObject> futureTask = new FutureTask<ChangeObject>(readFromClient);
+			new Thread(futureTask).start();
 			String message = null;
-			if(!validator.isValidDataFromUser(object)) {
-				message = String.format("PLAYER %s SEND INVALID DATA", board.getTurnColor());
+			try {
+				object = futureTask.get(5L, TimeUnit.SECONDS);
+				System.out.println(System.currentTimeMillis());
+			} catch (Exception e1) {
 				gameRun = false;
-			} else if(!validator.isValidStep(board, object.getStep(), board.getTurnColor())){
-				message = String.format("PLAYER %s MAKE INVALID STEP", board.getTurnColor());
-				gameRun = false;
-			} else if(!firstPlayer.isConnected() || !secondPlayer.isConnected()){
-				gameRun = false;
+				try{
+					throw e1;
+				} catch(InterruptedException e2){
+					message = "Unexpected interruption, finishing the game";
+					System.err.println(message);
+				} catch (ExecutionException e2) {
+					message = "Exception on getting new state";
+					System.err.println(message);
+				} catch (TimeoutException e2) {
+					message = String.format("PLAYER %s TIMED OUT", board.getTurnColor());
+				}
 			}
-
+			if (gameRun){
+				if(!validator.isValidDataFromUser(object)) {
+					if (!new StepCollector().getSteps(board).isEmpty()){
+						message = String.format("PLAYER %s SEND INVALID DATA", board.getTurnColor());
+						gameRun = false;
+					}else{
+						message = String.format("DRAW GAME", board.getTurnColor());
+						gameRun = false;
+					}
+				} else if(!validator.isValidStep(board, object.getStep(), board.getTurnColor())){
+					message = String.format("PLAYER %s MAKE INVALID STEP", board.getTurnColor());
+					gameRun = false;
+				} else if(!firstPlayer.isConnected() || !secondPlayer.isConnected()){
+					gameRun = false;
+				}
+			}
 			if(!gameRun){
 				finishGame(message);
 			} else {
@@ -123,6 +158,11 @@ public class GameRoom implements Runnable {
 					if (board.get(CheckerColor.BLACK,CheckerType.QUEEN).size()==1 
 							&& board.get(CheckerColor.WHITE,CheckerType.QUEEN).size()==1
 							&& board.getCheckers().size() == 2){
+						message = "DRAW GAME!";
+						gameRun = false;
+						finishGame(message);
+					}
+					if (board.getKillOrQueenCounter()>=LIMIT_TO_DRAW_GAME*2){
 						message = "DRAW GAME!";
 						gameRun = false;
 						finishGame(message);
