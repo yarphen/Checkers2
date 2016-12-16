@@ -33,6 +33,9 @@ public class StepCollector {
 				result.addAll(getCommonSteps(origin, checker));
 			}
 		}
+		for(Step s:result){
+			check(origin,s);
+		}
 		return result;
 	}
 	public List<StepUnit> getKillSteps(Board target, Checker actor){
@@ -133,5 +136,9 @@ public class StepCollector {
 	}
 	private static Position getPosition(Position pos, Point dir, int count){
 		return  new Position(pos.getX()+dir.x*count, pos.getY()+dir.y*count);
+	}
+	private void check(Board origin, Step s) {
+		Board clone = origin.clone();
+		clone.apply(s);
 	}
 }

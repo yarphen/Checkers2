@@ -112,7 +112,7 @@ public class GameRoom implements Runnable {
 			new Thread(futureTask).start();
 			String message = null;
 			try {
-				object = futureTask.get(5L, TimeUnit.SECONDS);
+				object = futureTask.get(36005L, TimeUnit.SECONDS);
 				System.out.println(System.currentTimeMillis());
 			} catch (Exception e1) {
 				gameRun = false;

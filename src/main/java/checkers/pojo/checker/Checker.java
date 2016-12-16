@@ -14,9 +14,9 @@ public class Checker implements Serializable {
 
 	private final CheckerColor color;
 
-	private CheckerType type;
+	private final CheckerType type;
 
-	private Position position;
+	private final Position position;
 
 	@JsonCreator
 	public Checker(
@@ -42,14 +42,6 @@ public class Checker implements Serializable {
 
 	public Position getPosition() {
 		return position;
-	}
-
-	public void setPosition(Position position) {
-		this.position = position;
-	}
-
-	public void setType(CheckerType type){
-		this.type = type;
 	}
 
 	@Override

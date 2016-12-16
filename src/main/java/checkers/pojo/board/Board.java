@@ -11,6 +11,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.HashMap;
 import java.util.LinkedList;;
 
@@ -27,8 +31,10 @@ public class Board implements Serializable {
 	/**
 	 * List of checkers
 	 */
-	private List<Checker> checkers;
+	private Map<Position,Checker> checkerMap = new HashMap<Position,Checker>();
 	private int killOrQueenCounter = 0;
+	private boolean modified;
+	private List<Checker> cachedList = new LinkedList<Checker>();
 	/**
 	 * Map with target rows for each color
 	 */
@@ -39,24 +45,40 @@ public class Board implements Serializable {
 			}});
 	private static final boolean KILL_TO_THE_END_MODE = false;
 	/**
+	 * JSON constructor
+	 */
+	@JsonCreator
+	public Board(
+			@JsonProperty("checkers")
+			List<Checker> checkers, 
+			@JsonProperty("turnColor")
+			CheckerColor turnColor) {
+		setTurnColor(turnColor);
+		checkers.forEach(this::add);
+	}
+	/**
 	 * Default constructor
 	 */
 	public Board() {
-		this.checkers = new ArrayList<Checker>();
 		for(Letters letter : Letters.values()){
 			for(Numbers number : Arrays.asList(Numbers._1, Numbers._2, Numbers._3)){
 				if(isCorrectPosition(letter, number)){
-					checkers.add(new Checker(CheckerColor.WHITE, CheckerType.SIMPLE, new Position(letter, number)));
+					add(new Checker(CheckerColor.WHITE, CheckerType.SIMPLE, new Position(letter, number)));
 				}
 			}
 
 			for(Numbers number : Arrays.asList(Numbers._6, Numbers._7, Numbers._8)){
 				if(isCorrectPosition(letter, number)){
-					checkers.add(new Checker(CheckerColor.BLACK, CheckerType.SIMPLE, new Position(letter, number)));
+					add(new Checker(CheckerColor.BLACK, CheckerType.SIMPLE, new Position(letter, number)));
 				}
 			}
 		}
 		this.turnColor =  CheckerColor.WHITE;
+	}
+
+	private void add(Checker checker) {
+		checkerMap.put(checker.getPosition(), checker);
+		modified = true;
 	}
 
 	/**
@@ -87,7 +109,11 @@ public class Board implements Serializable {
 	 * @return list of all the checkers
 	 */
 	public List<Checker> getCheckers() {
-		return checkers;
+		if (modified){
+			cachedList.clear();
+			cachedList.addAll(checkerMap.values());
+		}
+		return cachedList;
 	}
 
 	/**
@@ -99,34 +125,35 @@ public class Board implements Serializable {
 
 		List<Checker> checkersToRemove = new LinkedList<Checker>();
 		CheckerType type = null;
-		Position position = null;
-		Checker checker = null;
+		Checker savedChecker = null;
+		Checker newChecker = null;
+		
 		try{
-			checker = get(step.getSteps().get(0).getFrom());
-			type = checker.getType();
-			position = checker.getPosition();
+			savedChecker = get(step.getSteps().get(0).getFrom());
+			type = savedChecker.getType();
 			Boolean killMode = null;
 			boolean canKillBefore  = get(turnColor).stream().anyMatch(myChecker->canKillFrom(myChecker.getPosition(), myChecker.getType(), turnColor));
 			for(StepUnit unit : step.getSteps()){
+				newChecker = get(unit.getFrom());
 				boolean hasKilled = false;
 				checkForSecondStep(killMode);
 				checkForEmptyPosition(unit.getTo());
-				if(checker.getType() == CheckerType.SIMPLE) {
-					Checker removed = applySimpleStep(unit, checker);
+				if(newChecker.getType() == CheckerType.SIMPLE) {
+					Checker removed = applySimpleStep(unit, newChecker);
 					if (removed!=null){
 						hasKilled = true;
 						checkersToRemove.add(removed);
-						checkers.remove(removed);
+						remove(removed);
 					}
 					if (hasBecameQueen(turnColor, unit.getTo())){
-						checker.setType(CheckerType.QUEEN);
+						changeType(get(unit.getTo()),CheckerType.QUEEN);
 					}
-				} else if(checker.getType() == CheckerType.QUEEN) {
-					List<Checker> removed = applyQueenStep(unit, checker);
+				} else if(newChecker.getType() == CheckerType.QUEEN) {
+					List<Checker> removed = applyQueenStep(unit, newChecker);
 					if (!removed.isEmpty()){
 						hasKilled = true;
 						checkersToRemove.addAll(removed);
-						checkers.removeAll(removed);
+						removed.forEach(this::remove);
 					}
 				} else {
 					throw new IllegalArgumentException("invalid step, no checker type");
@@ -138,25 +165,39 @@ public class Board implements Serializable {
 						throw new IllegalArgumentException("invalid step, you must kill checkers on each stepunit of multistep");
 					}
 				}
+				newChecker = get(unit.getTo());
 			}
-			boolean canKillAfter = canKillFrom(checker.getPosition(), checker.getType(), turnColor);
+			boolean canKillAfter = canKillFrom(newChecker.getPosition(), newChecker.getType(), turnColor);
 			checkIfYouKillAllyouMust(killMode, canKillAfter, canKillBefore);
 			turnColor = turnColor.opposite();
-			if (killMode||(type==CheckerType.SIMPLE&&checker.getType()==CheckerType.QUEEN)){
+			if (killMode||(type==CheckerType.SIMPLE&&newChecker.getType()==CheckerType.QUEEN)){
 				killOrQueenCounter = 0;
 			}else{
 				killOrQueenCounter ++ ;
 			}
 		}catch(IllegalArgumentException e) {
-			checker.setType(type);
-			checker.setPosition(position);
-			checkers.addAll(checkersToRemove);
+			checkersToRemove.forEach(this::add);
+			remove(newChecker);
+			add(savedChecker);
 			throw e;
 		}catch(NullPointerException | IndexOutOfBoundsException e){
-			e.printStackTrace();
+			checkersToRemove.forEach(this::add);
+			remove(newChecker);
+			add(savedChecker);
 			throw new IllegalArgumentException("invalid step, other error", e);
 		}
 	}
+	private void changeType(Checker checker, CheckerType type) {
+		remove(checker);
+		add(new Checker(checker.getColor(), type, checker.getPosition()));
+		
+	}
+
+	private void remove(Checker item) {
+		checkerMap.remove(item.getPosition());
+		modified = true;
+	}
+
 	private void checkForEmptyPosition(Position to) {
 		if (get(to) != null) {
 			throw new IllegalArgumentException(String.format("position %s is not empty", to));
@@ -251,14 +292,14 @@ public class Board implements Serializable {
 			if (targetDirection!=hasDirection){
 				throw new IllegalArgumentException("invalid step, you can't move backward with simple checker");
 			}
-			checker.setPosition(unit.getTo());
+			changePosition(checker,unit.getTo());
 			return null;
 		} else if (stepSize == 2) {
 			Position middlePosition = Position.middle(unit.getFrom(), unit.getTo());
 			Checker middle = get(middlePosition);
 			Checker atTo = get(unit.getTo());
 			if (atTo == null && middle != null && middle.getColor() != checker.getColor()) {
-				checker.setPosition(unit.getTo());
+				changePosition(checker,unit.getTo());
 				return middle;
 			} else {
 				throw new IllegalArgumentException(String.format("position %s is not empty or middle position %s was not empty", unit.getTo(), middlePosition));
@@ -267,6 +308,11 @@ public class Board implements Serializable {
 			throw new IllegalArgumentException(String.format("simple checker can not move to %s position", unit.getTo()));
 		}
 	}
+	private void changePosition(Checker checker, Position to) {
+		remove(checker);
+		add(new Checker(checker.getColor(), checker.getType(), to));
+	}
+
 	/**
 	 * Applies 1 stepUnit for queen
 	 * @param unit - current stepUnit
@@ -296,7 +342,7 @@ public class Board implements Serializable {
 			}
 			previousChecker = currentChecker;
 		}
-		checker.setPosition(unit.getTo());
+		changePosition(checker,unit.getTo());
 		return cherkersToRemove;
 	}
 	/**
@@ -332,7 +378,7 @@ public class Board implements Serializable {
 	 */
 	public List<Checker> get(CheckerColor color, CheckerType type){
 		List<Checker> result = new ArrayList<Checker>();
-		for(Checker checker : checkers)
+		for(Checker checker : checkerMap.values())
 			if(checker.getType().equals(type) && checker.getColor().equals(color))
 				result.add(checker);
 		return result;
@@ -345,7 +391,7 @@ public class Board implements Serializable {
 	 */
 	public List<Checker> get(CheckerColor color){
 		List<Checker> result = new ArrayList<Checker>();
-		for(Checker checker : checkers)
+		for(Checker checker : checkerMap.values())
 			if(checker.getColor().equals(color))
 				result.add(checker);
 		return result;
@@ -358,7 +404,7 @@ public class Board implements Serializable {
 	 */
 	public List<Checker> get(CheckerType type){
 		List<Checker> result = new ArrayList<Checker>();
-		for(Checker checker : checkers)
+		for(Checker checker : checkerMap.values())
 			if(checker.getType().equals(type))
 				result.add(checker);
 		return result;
@@ -374,7 +420,7 @@ public class Board implements Serializable {
 			return null;
 
 		Checker checker = null;
-		for(Checker c : checkers)
+		for(Checker c : checkerMap.values())
 			if(c.getPosition().isSame(p)){
 				checker = c;
 				break;
@@ -387,10 +433,10 @@ public class Board implements Serializable {
 	 */
 	public Board clone(){
 		Board newBoard = new Board();
-		newBoard.checkers.clear();
-		for(Checker c:checkers){
+		newBoard.checkerMap.clear();
+		for(Checker c:checkerMap.values()){
 			Checker newChecker = new Checker(c);
-			newBoard.getCheckers().add(newChecker);
+			newBoard.add(newChecker);
 		}
 		newBoard.setTurnColor(getTurnColor());
 		return newBoard;
