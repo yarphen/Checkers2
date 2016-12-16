@@ -12,7 +12,6 @@ import checkers.server.room.GameRoomsContainer;
 public class Server {
 
     public static final int DEFAULT_PORT = 3000;
-
     private GameRoomsContainer container;
     private int port;
 

@@ -22,9 +22,9 @@ public class NetworkClient {
 
 	public static final String CONNECTION_CLOSED = null;
 
-	private static final boolean DEBUG = true;
+	private static final boolean DEBUG = false;
 	
-	private static final boolean LOG = true;
+	private static final boolean LOG = false;
 
 	private Socket socket;
 
@@ -132,5 +132,9 @@ public class NetworkClient {
 
     public boolean isConnected() {
         return connected;
+    }
+    
+    public String getIP(){
+    	return socket.getInetAddress().getHostAddress();
     }
 }

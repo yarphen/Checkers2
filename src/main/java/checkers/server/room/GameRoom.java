@@ -23,6 +23,8 @@ public class GameRoom implements Runnable {
 
 	private static final int LIMIT_TO_DRAW_GAME = 15;
 
+	private static final long SECONDS_FOR_TURN = 5L;
+
 	public final int GAME_ROOM_ID;
 
 	private Player firstPlayer;
@@ -34,6 +36,9 @@ public class GameRoom implements Runnable {
 	private Board board;
 
 	private Validator validator = new Validator();
+
+	private int gameWinner = -1;
+	
 
 	private volatile boolean hasTwoPlayers = false;
 
@@ -68,7 +73,7 @@ public class GameRoom implements Runnable {
 		if(!firstPlayer.isConnected() || !secondPlayer.isConnected()){
 			gameRun = false;
 		} else {
-			secondPlayerName = secondPlayer.read().getMessage();
+			secondPlayerName = secondPlayer.read().getMessage()+" ("+secondPlayer.getIP()+")";
 			secondPlayer.write(new ChangeObject().playerColor(CheckerColor.BLACK));
 			System.out.println(String.format("GAME ROOM %d: second player connected with name '%s'",
 					GAME_ROOM_ID, secondPlayerName));
@@ -81,7 +86,7 @@ public class GameRoom implements Runnable {
 
 	private void setFirstPlayer(Player first){
 		this.firstPlayer = first;
-		firstPlayerName = firstPlayer.read().getMessage();
+		firstPlayerName = firstPlayer.read().getMessage()+" ("+firstPlayer.getIP()+")";
 		firstPlayer.write(new ChangeObject().playerColor(CheckerColor.WHITE));
 
 		System.out.println(String.format("GAME ROOM %d: initialized with player '%s'",
@@ -95,8 +100,6 @@ public class GameRoom implements Runnable {
 	public void run() {
 		System.out.println(String.format("GAME ROOM %d: game started", GAME_ROOM_ID));
 		Callable <ChangeObject> readFromClient = ()->{
-			System.out.println("writing..");
-			System.out.println(System.currentTimeMillis());
 			if(board.getTurnColor() == CheckerColor.WHITE){
 				firstPlayer.write(new ChangeObject().board(board));
 				return firstPlayer.read();
@@ -112,8 +115,7 @@ public class GameRoom implements Runnable {
 			new Thread(futureTask).start();
 			String message = null;
 			try {
-				object = futureTask.get(36005L, TimeUnit.SECONDS);
-				System.out.println(System.currentTimeMillis());
+				object = futureTask.get(SECONDS_FOR_TURN, TimeUnit.SECONDS);
 			} catch (Exception e1) {
 				gameRun = false;
 				try{
@@ -126,6 +128,7 @@ public class GameRoom implements Runnable {
 					System.err.println(message);
 				} catch (TimeoutException e2) {
 					message = String.format("PLAYER %s TIMED OUT", board.getTurnColor());
+					gameWinner=getColorCode(board.getTurnColor().opposite());
 				}
 			}
 			if (gameRun){
@@ -133,12 +136,15 @@ public class GameRoom implements Runnable {
 					if (!new StepCollector().getSteps(board).isEmpty()){
 						message = String.format("PLAYER %s SEND INVALID DATA", board.getTurnColor());
 						gameRun = false;
+						gameWinner=getColorCode(board.getTurnColor().opposite());
 					}else{
 						message = String.format("DRAW GAME", board.getTurnColor());
 						gameRun = false;
+						gameWinner=0;
 					}
 				} else if(!validator.isValidStep(board, object.getStep(), board.getTurnColor())){
 					message = String.format("PLAYER %s MAKE INVALID STEP", board.getTurnColor());
+					gameWinner=getColorCode(board.getTurnColor().opposite());
 					gameRun = false;
 				} else if(!firstPlayer.isConnected() || !secondPlayer.isConnected()){
 					gameRun = false;
@@ -153,6 +159,7 @@ public class GameRoom implements Runnable {
 							|| board.get(CheckerColor.WHITE).isEmpty()){
 						message = String.format("PLAYER %s WON", board.getTurnColor().opposite());
 						gameRun = false;
+						gameWinner=getColorCode(board.getTurnColor().opposite());
 						finishGame(message);
 					}
 					if (board.get(CheckerColor.BLACK,CheckerType.QUEEN).size()==1 
@@ -165,16 +172,23 @@ public class GameRoom implements Runnable {
 					if (board.getKillOrQueenCounter()>=LIMIT_TO_DRAW_GAME*2){
 						message = "DRAW GAME!";
 						gameRun = false;
+						gameWinner = 0;
 						finishGame(message);
 					}
 				} catch (IllegalArgumentException e){
+					message = String.format("PLAYER %s MAKE INVALID STEP", board.getTurnColor());
 					gameRun = false;
+					gameWinner=getColorCode(board.getTurnColor().opposite());
 					finishGame(e.getMessage());
 				}
 			}
 		}
 
 		System.out.println(String.format("GAME ROOM %d: game ended", GAME_ROOM_ID));
+	}
+
+	private int getColorCode(CheckerColor color) {
+		return color==CheckerColor.WHITE?1:2;
 	}
 
 	private void finishGame(String message){
@@ -186,5 +200,16 @@ public class GameRoom implements Runnable {
 		secondPlayer.write(object);
 
 		//TODO: send data to server
+	}
+
+	public String getFirstPlayerName() {
+		return firstPlayerName;
+	}
+
+	public String getSecondPlayerName() {
+		return secondPlayerName;
+	}
+	public int getGameWinner() {
+		return gameWinner;
 	}
 }
